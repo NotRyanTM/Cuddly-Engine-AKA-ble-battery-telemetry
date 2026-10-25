@@ -1,3 +1,15 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Android / Gradle
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
