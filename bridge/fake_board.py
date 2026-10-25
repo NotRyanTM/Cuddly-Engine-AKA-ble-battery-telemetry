@@ -19,6 +19,8 @@ async def handle_client(reader, writer):
             writer.write(message)
             await writer.drain()
 
+            if random.random() < 0.02:
+                seq = (seq + 1) % 65536  # pretend a message was lost
             seq = (seq + 1) % 65536
             mv -= 5
             if mv < 3000:
@@ -34,4 +36,5 @@ async def main():
     await server.serve_forever()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
