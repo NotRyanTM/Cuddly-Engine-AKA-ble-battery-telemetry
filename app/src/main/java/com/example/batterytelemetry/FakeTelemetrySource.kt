@@ -18,9 +18,19 @@ class FakeTelemetrySource(
         var millivolts = 4200.0
 
         while (true) {
-            // TODO 1: emit a Reading built from the current values
-            // TODO 2: move to the next values (sequence, time, voltage)
-            // TODO 3: about 1 time in 50, skip an extra sequence number
+            // 1. Send the current reading to whoever is listening.
+            val milliamps = 300 + random.nextInt(-20, 21)
+            emit(Reading(sequence, timeMs, millivolts.toInt(), milliamps))
+
+            // 2. Move to the next values.
+            sequence = (sequence + 1) % 65536
+            timeMs += intervalMs
+            millivolts = (millivolts - 0.5).coerceAtLeast(3000.0)
+
+            // 3. About 1 time in 50, skip a number to fake a lost message.
+            if (random.nextInt(50) == 0) {
+                sequence = (sequence + 1) % 65536
+            }
             delay(intervalMs)
         }
     }
