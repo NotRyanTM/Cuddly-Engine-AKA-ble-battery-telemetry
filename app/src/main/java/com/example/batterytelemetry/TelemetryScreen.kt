@@ -27,11 +27,18 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.batterytelemetry.ui.theme.BatteryTelemetryTheme
 import java.util.Locale
 
-/** Connects the screen to a ViewModel fed by the fake source. Swap the source here later. */
+/**
+ * The one place to choose where readings come from:
+ * - NetworkTelemetrySource(): bridge/fake_board.py or the BLE bridge on the laptop (10.0.2.2:5050)
+ * - FakeTelemetrySource(): made-up readings inside the app, no laptop needed
+ */
+private fun createTelemetrySource(): TelemetrySource = NetworkTelemetrySource()
+
+/** Connects the screen to a ViewModel fed by [createTelemetrySource]. */
 @Composable
 fun TelemetryRoute(modifier: Modifier = Modifier) {
     val viewModel: TelemetryViewModel = viewModel(
-        factory = viewModelFactory { initializer { TelemetryViewModel(FakeTelemetrySource()) } }
+        factory = viewModelFactory { initializer { TelemetryViewModel(createTelemetrySource()) } }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     TelemetryScreen(state, modifier)
