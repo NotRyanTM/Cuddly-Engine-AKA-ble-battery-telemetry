@@ -8,3 +8,8 @@ def test_worked_example():
 def test_wrong_length_raises():
     with pytest.raises(ValueError):
         decode(bytes(10))
+
+def test_wrong_version_raises():
+    # Same as the worked example, but the first byte (version) is 2 instead of 1
+    with pytest.raises(ValueError):
+        decode(bytes.fromhex("020500e8030000740e2c01"))
