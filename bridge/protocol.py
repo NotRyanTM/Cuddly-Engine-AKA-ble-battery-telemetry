@@ -20,3 +20,7 @@ def decode(data: bytes) -> dict:
         "mv": mv,
         "ma": ma,
     }
+
+def pack(seq: int, time_ms: int, mv: int, ma: int) -> bytes:
+    """Build one 11-byte telemetry message: the reverse of decode."""
+    return struct.pack(FORMAT, SUPPORTED_VERSION, seq, time_ms, mv, ma)
