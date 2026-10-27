@@ -2,6 +2,7 @@ package com.example.batterytelemetry
 
 import java.io.DataInputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlinx.coroutines.CoroutineDispatcher
@@ -11,6 +12,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +21,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
 /**
- * Reads 11-byte telemetry messages over TCP from bridge/fake_board.py or the BLE bridge.
+ * Reads 11-byte telemetry messages over TCP from bridge/fake_board.py or the BLE bridge,
+ * and sends 2-byte config messages back.
  * Inside the Android emulator, 10.0.2.2 is the laptop's own 127.0.0.1.
  * If the connection drops or never opens, it waits [retryDelayMs] and tries again.
  */
@@ -34,7 +37,19 @@ class NetworkTelemetrySource(
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    override suspend fun setInterval(intervalMs: Int): Boolean = false  // real version in Step 3
+    // The open socket's output, so setInterval can write to it. Null when not connected.
+    @Volatile private var output: OutputStream? = null
+
+    override suspend fun setInterval(intervalMs: Int): Boolean = withContext(dispatcher) {
+        val out = output ?: return@withContext false  // not connected
+        try {
+            out.write(PacketParser.packConfig(intervalMs))
+            out.flush()  // send now instead of waiting for more bytes
+            true
+        } catch (e: IOException) {
+            false  // the connection dropped mid-write
+        }
+    }
 
     override val readings: Flow<Reading> = flow {
         var firstAttempt = true
@@ -47,6 +62,7 @@ class NetworkTelemetrySource(
                     Socket().use { socket ->
                         socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
                         _connectionState.value = ConnectionState.CONNECTED
+                        output = socket.getOutputStream()
                         coroutineScope {
                             // A blocked socket read ignores coroutine cancellation. Closing the
                             // socket when the listener goes away makes readFully throw and stop.
@@ -56,6 +72,7 @@ class NetworkTelemetrySource(
                                 try {
                                     awaitCancellation()
                                 } finally {
+                                    output = null
                                     socket.close()
                                 }
                             }
