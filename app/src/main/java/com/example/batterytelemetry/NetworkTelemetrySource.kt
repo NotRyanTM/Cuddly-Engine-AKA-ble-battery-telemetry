@@ -61,8 +61,9 @@ class NetworkTelemetrySource(
                 try {
                     Socket().use { socket ->
                         socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
-                        _connectionState.value = ConnectionState.CONNECTED
+                        // Save the output first, so setInterval works as soon as CONNECTED is visible.
                         output = socket.getOutputStream()
+                        _connectionState.value = ConnectionState.CONNECTED
                         coroutineScope {
                             // A blocked socket read ignores coroutine cancellation. Closing the
                             // socket when the listener goes away makes readFully throw and stop.
