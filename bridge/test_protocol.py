@@ -1,5 +1,5 @@
 import pytest
-from protocol import decode, pack, pack_config
+from protocol import decode, pack, pack_config, decode_config
 
 def test_worked_example():
     r = decode(bytes.fromhex("010500e8030000740e2c01"))
@@ -39,3 +39,18 @@ def test_pack_config_out_of_range_raises():
     for bad in (99, 5001, 0, -1):
         with pytest.raises(ValueError):
             pack_config(bad)
+
+
+def test_decode_config_1000ms():
+    assert decode_config(bytes.fromhex("e803")) == 1000
+
+def test_decode_config_round_trip():
+    assert decode_config(pack_config(250)) == 250
+
+def test_decode_config_wrong_length_raises():
+    with pytest.raises(ValueError):
+        decode_config(bytes.fromhex("e80300"))
+
+def test_decode_config_out_of_range_raises():
+    with pytest.raises(ValueError):
+        decode_config(bytes.fromhex("3200"))  # 50 ms, below the minimum
