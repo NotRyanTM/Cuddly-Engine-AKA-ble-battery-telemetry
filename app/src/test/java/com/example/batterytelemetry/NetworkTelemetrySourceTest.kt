@@ -1,10 +1,13 @@
 package com.example.batterytelemetry
 
+import java.io.DataInputStream
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
@@ -13,7 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Each test runs a tiny TCP server on this machine in place of bridge/fake_board.py. */
@@ -119,5 +125,38 @@ class NetworkTelemetrySourceTest {
             source.connectionState.first { it == ConnectionState.RECONNECTING }
             job.cancel()
         }
+    }
+
+    @Test
+    fun setIntervalSendsConfigBytes() = runBlocking {
+        val received = CompletableFuture<ByteArray>()
+        thread {
+            server.accept().use { client ->
+                client.getOutputStream().write(workedExample)
+                val bytes = ByteArray(2)
+                DataInputStream(client.getInputStream()).readFully(bytes)  // wait for the config message
+                received.complete(bytes)
+            }
+        }
+        val source = source()
+
+        val sent = withTimeout(5000) {
+            coroutineScope {
+                val collector = launch { source.readings.collect { } }  // keeps the connection open
+                source.connectionState.first { it == ConnectionState.CONNECTED }
+                val ok = source.setInterval(1000)
+                collector.cancel()
+                ok
+            }
+        }
+
+        assertTrue(sent)
+        // 1000 = 0x03E8, little-endian -> E8 03 (docs/protocol.md)
+        assertArrayEquals(byteArrayOf(0xE8.toByte(), 0x03), received.get(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun setIntervalReturnsFalseWhenNotConnected() = runBlocking {
+        assertFalse(source().setInterval(1000))
     }
 }
