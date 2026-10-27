@@ -1,4 +1,5 @@
 package com.example.batterytelemetry
+
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +12,10 @@ class FakeTelemetrySource(
     private val startSequence: Int = 0,
     private val random: Random = Random.Default,
 ) : TelemetrySource {
+
+    /** The last interval set, so tests can check it. */
+    var lastInterval: Int? = null
+        private set
 
     override val readings: Flow<Reading> = flow {
         var sequence = startSequence
@@ -36,4 +41,9 @@ class FakeTelemetrySource(
     }
 
     override val connectionState: Flow<ConnectionState> = flowOf(ConnectionState.CONNECTED)
+
+    override suspend fun setInterval(intervalMs: Int): Boolean {
+        lastInterval = intervalMs
+        return true
+    }
 }

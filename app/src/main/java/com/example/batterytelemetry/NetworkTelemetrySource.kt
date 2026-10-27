@@ -34,6 +34,8 @@ class NetworkTelemetrySource(
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    override suspend fun setInterval(intervalMs: Int): Boolean = false  // real version in Step 3
+
     override val readings: Flow<Reading> = flow {
         var firstAttempt = true
         try {
