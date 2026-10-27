@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,18 +43,23 @@ fun TelemetryRoute(modifier: Modifier = Modifier) {
         factory = viewModelFactory { initializer { TelemetryViewModel(createTelemetrySource()) } }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
-    TelemetryScreen(state, modifier)
+    TelemetryScreen(state, modifier, onIntervalSelected = viewModel::setInterval)
 }
 
 /** Draws one [UiState]. It holds no logic, so previews and tests can pass in any state. */
 @Composable
-fun TelemetryScreen(state: UiState, modifier: Modifier = Modifier) {
+fun TelemetryScreen(
+    state: UiState,
+    modifier: Modifier = Modifier,
+    onIntervalSelected: (Int) -> Unit = {},
+) {
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Battery Telemetry", style = MaterialTheme.typography.headlineMedium)
         Text("Status: ${state.connectionState.label()}", style = MaterialTheme.typography.titleMedium)
+        IntervalButtons(state.intervalMs, onIntervalSelected)
 
         val latest = state.latest
         if (latest == null) {
@@ -66,6 +73,20 @@ fun TelemetryScreen(state: UiState, modifier: Modifier = Modifier) {
             Text("Lost messages: ${state.lostMessages}")
             Text("Power, last 2 minutes", style = MaterialTheme.typography.titleSmall)
             PowerChart(state.recent, Modifier.fillMaxWidth().height(200.dp))
+        }
+    }
+}
+
+/** Fast / Normal / Slow. The selected one is filled; the others are outlined. */
+@Composable
+private fun IntervalButtons(selectedMs: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((label, ms) in listOf("Fast" to 250, "Normal" to 1000, "Slow" to 3000)) {
+            if (ms == selectedMs) {
+                Button(onClick = { onSelect(ms) }) { Text(label) }
+            } else {
+                OutlinedButton(onClick = { onSelect(ms) }) { Text(label) }
+            }
         }
     }
 }
