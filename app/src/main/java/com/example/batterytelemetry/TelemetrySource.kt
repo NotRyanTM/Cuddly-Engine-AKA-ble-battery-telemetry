@@ -14,4 +14,6 @@ interface TelemetrySource {
 
     /** The current connection state, plus every change to it. */
     val connectionState: Flow<ConnectionState>
+    /** Ask the board to send readings every [intervalMs] ms. Returns false if not connected. */
+    suspend fun setInterval(intervalMs: Int): Boolean
 }

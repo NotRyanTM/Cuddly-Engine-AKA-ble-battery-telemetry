@@ -26,6 +26,13 @@ class TelemetryViewModelTest {
         val sentConnection = MutableStateFlow(ConnectionState.SCANNING)
         override val readings: Flow<Reading> = sentReadings
         override val connectionState: Flow<ConnectionState> = sentConnection
+
+        /** Every interval the ViewModel asks for, in order. */
+        val requestedIntervals = mutableListOf<Int>()
+        override suspend fun setInterval(intervalMs: Int): Boolean {
+            requestedIntervals += intervalMs
+            return true
+        }
     }
 
     // viewModelScope runs on the Main dispatcher, which plain unit tests don't have.
