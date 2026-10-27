@@ -118,6 +118,19 @@ class TelemetryViewModelTest {
     }
 
     @Test
+    fun setIntervalAsksSourceAndUpdatesState() = runTest(dispatcher) {
+        val source = TestTelemetrySource()
+        val viewModel = startViewModel(source)
+        assertEquals(1000, viewModel.state.value.intervalMs)  // default from protocol.md
+
+        viewModel.setInterval(250)
+        advanceUntilIdle()
+
+        assertEquals(listOf(250), source.requestedIntervals)
+        assertEquals(250, viewModel.state.value.intervalMs)
+    }
+
+    @Test
     fun lostBetweenHandlesNormalWrapAndRepeat() {
         assertEquals(0, TelemetryViewModel.lostBetween(5, 6))
         assertEquals(2, TelemetryViewModel.lostBetween(5, 8))

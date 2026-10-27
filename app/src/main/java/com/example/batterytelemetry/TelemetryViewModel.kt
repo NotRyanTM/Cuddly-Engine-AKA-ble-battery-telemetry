@@ -33,6 +33,15 @@ class TelemetryViewModel(
         }
     }
 
+    /** Asks the board for a new sample interval. The screen only changes if the request was sent. */
+    fun setInterval(ms: Int) {
+        viewModelScope.launch {
+            if (source.setInterval(ms)) {
+                _state.update { it.copy(intervalMs = ms) }
+            }
+        }
+    }
+
     private fun addReading(state: UiState, reading: Reading): UiState {
         val lost = state.latest?.let { lostBetween(it.sequence, reading.sequence) } ?: 0
         // Keep only readings within the window, measured back from the newest one.
