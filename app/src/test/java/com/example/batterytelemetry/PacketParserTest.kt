@@ -1,5 +1,6 @@
 package com.example.batterytelemetry
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -53,5 +54,20 @@ class PacketParserTest {
     fun computesPower() {
         val r = PacketParser.parse(hex("010500e8030000740e2c01"))
         assertEquals(1110, r.milliwatts) // 3700 mV x 300 mA = 1110 mW
+    }
+
+    @Test
+    fun packConfigMatchesProtocol() {
+        // 1000 = 0x03E8, little-endian -> E8 03
+        assertArrayEquals(byteArrayOf(0xE8.toByte(), 0x03), PacketParser.packConfig(1000))
+        assertArrayEquals(byteArrayOf(0x64, 0x00), PacketParser.packConfig(100))
+        assertArrayEquals(byteArrayOf(0x88.toByte(), 0x13), PacketParser.packConfig(5000))
+    }
+
+    @Test
+    fun packConfigRejectsOutOfRange() {
+        for (bad in listOf(99, 5001, 0, -1)) {
+            assertThrows(IllegalArgumentException::class.java) { PacketParser.packConfig(bad) }
+        }
     }
 }
