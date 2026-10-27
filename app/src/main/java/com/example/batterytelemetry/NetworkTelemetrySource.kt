@@ -5,6 +5,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -47,7 +48,9 @@ class NetworkTelemetrySource(
                         coroutineScope {
                             // A blocked socket read ignores coroutine cancellation. Closing the
                             // socket when the listener goes away makes readFully throw and stop.
-                            launch {
+                            // UNDISPATCHED enters the try right away; a plain launch could be
+                            // cancelled before it started, skipping the finally and the close.
+                            launch(start = CoroutineStart.UNDISPATCHED) {
                                 try {
                                     awaitCancellation()
                                 } finally {
