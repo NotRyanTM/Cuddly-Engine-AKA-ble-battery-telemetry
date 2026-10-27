@@ -35,3 +35,12 @@ def pack_config(interval_ms: int) -> bytes:
     if not (MIN_INTERVAL_MS <= interval_ms <= MAX_INTERVAL_MS):
         raise ValueError(f"interval must be {MIN_INTERVAL_MS}-{MAX_INTERVAL_MS} ms, got {interval_ms}")
     return struct.pack(CONFIG_FORMAT, interval_ms)
+
+def decode_config(data: bytes) -> int:
+    """Turn a 2-byte config message back into a sample interval in ms."""
+    if len(data) != 2:
+        raise ValueError(f"expected 2 bytes, got {len(data)}")
+    interval_ms = struct.unpack(CONFIG_FORMAT, data)[0]  # unpack returns a tuple
+    if not (MIN_INTERVAL_MS <= interval_ms <= MAX_INTERVAL_MS):
+        raise ValueError(f"interval must be {MIN_INTERVAL_MS}-{MAX_INTERVAL_MS} ms, got {interval_ms}")
+    return interval_ms
