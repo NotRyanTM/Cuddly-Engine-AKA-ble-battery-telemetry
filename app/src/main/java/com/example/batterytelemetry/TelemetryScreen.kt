@@ -71,6 +71,7 @@ fun TelemetryScreen(
                 BigValue("Power", formatWatts(latest.milliwatts))
             }
             Text("Lost messages: ${state.lostMessages}")
+            state.ratePerSecond?.let { Text("Rate: ${formatRate(it)}") }
             Text("Power, last 2 minutes", style = MaterialTheme.typography.titleSmall)
             PowerChart(state.recent, Modifier.fillMaxWidth().height(200.dp))
         }
@@ -134,6 +135,8 @@ private fun ConnectionState.label() = when (this) {
 internal fun formatVolts(millivolts: Int) = String.format(Locale.US, "%.2f V", millivolts / 1000.0)
 
 internal fun formatWatts(milliwatts: Int) = String.format(Locale.US, "%.2f W", milliwatts / 1000.0)
+
+internal fun formatRate(perSecond: Double) = String.format(Locale.US, "%.1f per second", perSecond)
 
 @Preview(showBackground = true)
 @Composable

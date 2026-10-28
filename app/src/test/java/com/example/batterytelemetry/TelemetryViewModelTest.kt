@@ -129,7 +129,31 @@ class TelemetryViewModelTest {
         assertEquals(listOf(250), source.requestedIntervals)
         assertEquals(250, viewModel.state.value.intervalMs)
     }
+    @Test
+    fun ratePerSecondFromTimestamps() {
+        val fast = (0..4).map { reading(it, timeMs = it * 250L) }   // 250 ms apart
+        assertEquals(4.0, TelemetryViewModel.ratePerSecond(fast)!!, 0.001)
 
+        val slow = (0..4).map { reading(it, timeMs = it * 3000L) }  // 3 s apart
+        assertEquals(1.0 / 3, TelemetryViewModel.ratePerSecond(slow)!!, 0.001)
+    }
+
+    @Test
+    fun rateNeedsTwoReadingsWithDifferentTimes() {
+        assertNull(TelemetryViewModel.ratePerSecond(emptyList()))
+        assertNull(TelemetryViewModel.ratePerSecond(listOf(reading(1))))
+        assertNull(TelemetryViewModel.ratePerSecond(listOf(reading(1, timeMs = 0), reading(2, timeMs = 0))))
+    }
+
+    @Test
+    fun stateShowsMeasuredRate() = runTest(dispatcher) {
+        val source = TestTelemetrySource()
+        val viewModel = startViewModel(source)
+
+        send(source, reading(1, timeMs = 0), reading(2, timeMs = 1000), reading(3, timeMs = 2000))
+
+        assertEquals(1.0, viewModel.state.value.ratePerSecond!!, 0.001)
+    }
     @Test
     fun lostBetweenHandlesNormalWrapAndRepeat() {
         assertEquals(0, TelemetryViewModel.lostBetween(5, 6))
