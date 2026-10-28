@@ -6,9 +6,9 @@ An ESP32 sensor board that measures a battery's voltage and current and sends th
 
 The board, a Python bridge and the Android app all speak one 11-byte message format, defined in [docs/protocol.md](docs/protocol.md). While the board firmware is being written, a Python fake board produces messages in that same format, so the app and its tests run end to end today.
 
-<img src="docs/demo.gif" alt="Battery Telemetry app showing live voltage, current, power and a scrolling power chart" width="300">
+<img src="docs/demo.gif" alt="Battery Telemetry app switching between Fast, Normal and Slow sample rates while the power chart updates" width="300">
 
-*The app in the Android emulator, reading live messages from the Python fake board over TCP. Readings are simulated until the ESP32 firmware is done.*
+*The app in the Android emulator, connected to the Python fake board over TCP. Tapping Fast, Slow and Normal sends a 2-byte config message, and the board changes how often it sends readings (250 ms, 3 s, 1 s). Readings are simulated until the ESP32 firmware is done.*
 
 ## Status
 
@@ -18,6 +18,7 @@ The board, a Python bridge and the Android app all speak one 11-byte message for
 | Python decoder and packer, with tests | Done |
 | Python fake board (TCP, port 5050) | Done |
 | Android app: decoder, fake and network data sources, ViewModel, screen with live power chart | Done |
+| Two-way control: Fast / Normal / Slow buttons set the board's sample interval | Done (app and fake board) |
 | Automated tests on every push (GitHub Actions) | Done |
 | Sensor board hardware (ESP32 + INA219) | Wired, not yet powered or tested |
 | ESP32 firmware | Not started |
@@ -30,7 +31,8 @@ The board, a Python bridge and the Android app all speak one 11-byte message for
 Today (no board needed):
 
 ```text
-fake_board.py ──TCP :5050──► Android app in the emulator (NetworkTelemetrySource)
+fake_board.py ──11-byte readings, TCP :5050──► Android app in the emulator (NetworkTelemetrySource)
+              ◄──2-byte sample interval──────  Fast / Normal / Slow buttons
 ```
 
 Planned:
@@ -50,7 +52,9 @@ The sequence number counts up by one per message, so a gap means a message was l
 
 Worked example, used as a test in both Python and Kotlin: version 1, sequence 5, time 1000 ms, 3700 mV, 300 mA is `01 05 00 E8 03 00 00 74 0E 2C 01`.
 
-The full specification, including the BLE UUIDs and the phone-to-board config message, is in [docs/protocol.md](docs/protocol.md).
+The phone sends the board a 2-byte config message, a little-endian sample interval from 100 to 5000 ms (`"<H"`). For example, 1000 ms is `E8 03`. Both sides reject values outside that range, and the board keeps its current interval if it receives one.
+
+The full specification, including the BLE UUIDs, is in [docs/protocol.md](docs/protocol.md).
 
 ## Repository layout
 
@@ -69,7 +73,7 @@ Start the fake board (from the `bridge` folder):
 python fake_board.py
 ```
 
-To watch the decoded readings in a terminal instead of the app, run this in a second terminal:
+To watch the decoded readings in a terminal instead of the app, run this in a second terminal. Add a number to send a new sample interval first, for example `python watch_board.py 250`:
 
 ```bash
 python watch_board.py
@@ -81,8 +85,8 @@ To see them in the app, open the project in Android Studio and run it on an emul
 
 The tests check every layer against the same worked example, so the Python and Kotlin sides agree byte for byte.
 
-- **Python (5 tests):** decoding the worked example, rejecting wrong lengths and unsupported versions, and packing and unpacking round trips.
-- **Kotlin unit tests (19):** the packet parser, the fake source, the network source and the ViewModel. They cover a message split across two TCP packets, reconnecting after the server closes, counting a gap in sequence numbers as a lost message, and not counting the wrap from 65535 to 0 as one.
+- **Python (13 tests):** decoding the worked example, rejecting wrong lengths and unsupported versions, packing and unpacking round trips, and packing and decoding the config message, including rejecting intervals out of range.
+- **Kotlin unit tests (25):** the packet parser, the fake source, the network source and the ViewModel. They cover a message split across two TCP packets, reconnecting after the server closes, counting a gap in sequence numbers as a lost message, not counting the wrap from 65535 to 0 as one, and checking that `setInterval` sends exactly `E8 03` for 1000 ms and returns false when not connected.
 - **Compose UI tests (2):** the screen shows a waiting message before the first reading, then the latest reading and the lost-message count.
 
 Python (from the `bridge` folder):
@@ -109,8 +113,7 @@ The ESP32 is powered from the laptop over USB, and the battery's negative termin
 
 ## Next steps
 
-1. Write the ESP32 firmware: read the INA219, pack each reading into the 11-byte message and send it as a BLE notification.
-2. Extend `ble_bridge.py` to connect to the board, subscribe to notifications and forward the raw messages over TCP, so the app in the emulator shows real readings.
-3. Add the phone-to-board config message for changing the sample interval.
-4. Measure lost messages at different distances, reconnect time and accuracy against a multimeter, and add the results here.
-5. Add a BLE data source to the app and test it on an Android phone.
+1. Write the ESP32 firmware: read the INA219, pack each reading into the 11-byte message, send it as a BLE notification, and accept the config message.
+2. Extend `ble_bridge.py` to connect to the board, subscribe to notifications, forward the raw messages over TCP and pass config messages back, so the app in the emulator shows real readings.
+3. Measure lost messages at different distances, reconnect time and accuracy against a multimeter, and add the results here.
+4. Add a BLE data source to the app and test it on an Android phone.
