@@ -7,4 +7,5 @@ data class UiState(
     val recent: List<Reading> = emptyList(),  // readings inside the chart window, oldest first
     val lostMessages: Int = 0,                // gaps found in the sequence numbers
     val intervalMs: Int = 1000,               // sample interval the board was last asked for
+    val ratePerSecond: Double? = null,        // measured from timestamps; null until there are 2 readings
 )

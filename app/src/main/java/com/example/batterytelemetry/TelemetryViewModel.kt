@@ -46,7 +46,12 @@ class TelemetryViewModel(
         val lost = state.latest?.let { lostBetween(it.sequence, reading.sequence) } ?: 0
         // Keep only readings within the window, measured back from the newest one.
         val recent = (state.recent + reading).filter { reading.timeMs - it.timeMs <= windowMs }
-        return state.copy(latest = reading, recent = recent, lostMessages = state.lostMessages + lost)
+        return state.copy(
+            latest = reading,
+            recent = recent,
+            lostMessages = state.lostMessages + lost,
+            ratePerSecond = ratePerSecond(recent),
+        )
     }
 
     companion object {
@@ -57,5 +62,17 @@ class TelemetryViewModel(
          */
         fun lostBetween(previous: Int, current: Int): Int =
             ((current - previous + 65536) % 65536 - 1).coerceAtLeast(0)
+
+        /**
+         * Readings per second over the last [sample] readings, from the board's own timestamps.
+         * Null with fewer than 2 readings, or if they all have the same time.
+         */
+        fun ratePerSecond(readings: List<Reading>, sample: Int = 5): Double? {
+            val last = readings.takeLast(sample)
+            if (last.size < 2) return null
+            val spanMs = last.last().timeMs - last.first().timeMs
+            if (spanMs <= 0) return null
+            return (last.size - 1) * 1000.0 / spanMs  // 5 readings = 4 gaps
+        }
     }
 }
