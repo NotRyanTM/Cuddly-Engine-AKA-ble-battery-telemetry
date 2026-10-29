@@ -20,11 +20,11 @@ The board, a Python bridge and the Android app all speak one 11-byte message for
 | Android app: decoder, fake and network data sources, ViewModel, screen with live power chart | Done |
 | Two-way control: Fast / Normal / Slow buttons set the board's sample interval | Done (app and fake board) |
 | Automated tests on every push (GitHub Actions) | Done |
-| Sensor board hardware (ESP32 + INA219) | Wired, not yet powered or tested |
-| ESP32 firmware | Not started |
-| Python BLE bridge | Scans for devices; connecting to the board comes next |
+| Sensor board hardware (ESP32 + ACS711 + voltage divider) | Built and powered from a bench supply |
+| ESP32 firmware | Reads the ACS711 (GPIO34) and divider (GPIO35), sends readings over BLE, accepts the config message |
+| Python BLE bridge | Connects to the board and forwards readings over TCP to the app |
 | Android BLE data source | Not started (needs a physical Android phone) |
-| Measurements (lost messages, reconnect time, accuracy) | Not started |
+| Measurements (lost messages, reconnect time, accuracy) | First check done (below); full measurements not started |
 
 ## How it works
 
@@ -38,8 +38,8 @@ fake_board.py ──11-byte readings, TCP :5050──► Android app in the emul
 Planned:
 
 ```text
-battery + load ──► INA219 ──I2C──► ESP32 ──BLE──► Python bridge on a laptop ──TCP──► app in the emulator
-                                         └──BLE──► app on an Android phone
+battery + load ──► ACS711 + divider ──analog──► ESP32 ──BLE──► Python bridge on a laptop ──TCP──► app in the emulator
+                                                      └──BLE──► app on an Android phone
 ```
 
 The app's screens only talk to a `TelemetrySource` interface. Three versions plug into it: `FakeTelemetrySource` (made-up readings, for tests), `NetworkTelemetrySource` (reads messages over TCP; in the emulator, `10.0.2.2` is the laptop) and, later, a BLE source. Switching between them does not change the screens or the decoder.
@@ -106,14 +106,21 @@ GitHub Actions runs both on every push. The UI tests need an emulator and run fr
 ## Hardware
 
 - ESP32 development board
-- INA219 current and voltage sensor, connected over I2C
-- 4 × AA battery pack driving a power resistor load through the INA219's sense pins
+- Pololu ACS711 Hall-effect current sensor carrier, with its analog output on an ESP32 ADC pin
+- Resistor voltage divider that scales the battery voltage into the ESP32's ADC range
+- Bench supply at 6.0 V (0.5 A limit) standing in for the battery, driving a 47 Ω, 5 W resistor load through the ACS711's IP+ and IP− terminals
 
-The ESP32 is powered from the laptop over USB, and the battery's negative terminal shares a ground with the INA219 and the ESP32.
+| Signal | Connection | Firmware conversion |
+|---|---|---|
+| Current | ACS711 OUT → GPIO34 (D34) | (pin mV − 1650) / 110 mV per A |
+| Voltage | 20 kΩ / 10 kΩ divider midpoint → GPIO35 (D35) | pin mV × 3 |
+
+Each reading averages 16 ADC samples. The ESP32 is powered from the laptop over USB, the ACS711 runs from the ESP32's 3.3 V supply, and the supply's negative terminal shares a ground with the ACS711, the divider and the ESP32.
+
+First check against the bench supply (6.0 V, 0.13 A): the board reported about 5.70 V and 115–130 mA. The voltage reads about 5% low, which is typical of the ESP32's ADC; calibrating it is the next step.
 
 ## Next steps
 
-1. Write the ESP32 firmware: read the INA219, pack each reading into the 11-byte message, send it as a BLE notification, and accept the config message.
-2. Extend `ble_bridge.py` to connect to the board, subscribe to notifications, forward the raw messages over TCP and pass config messages back, so the app in the emulator shows real readings.
-3. Measure lost messages at different distances, reconnect time and accuracy against a multimeter, and add the results here.
-4. Add a BLE data source to the app and test it on an Android phone.
+1. Calibrate the voltage reading against a multimeter.
+2. Measure lost messages at different distances, reconnect time and accuracy against a multimeter, and add the results here.
+3. Add a BLE data source to the app and test it on an Android phone.
