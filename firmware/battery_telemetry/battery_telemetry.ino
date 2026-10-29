@@ -1,9 +1,8 @@
-// Battery telemetry firmware, stage 1: fake readings over real Bluetooth.
+// Battery telemetry firmware, stage 2: real readings over Bluetooth.
 //
 // Sends the 11-byte telemetry message from docs/protocol.md as BLE notifications,
-// and accepts the 2-byte sample-interval config message. It is the ESP32 version of
-// bridge/fake_board.py; stage 2 replaces the fake numbers with the ACS711 and a
-// voltage divider, and nothing else changes.
+// and accepts the 2-byte sample-interval config message. Current comes from an
+// ACS711 (OUT on GPIO34) and voltage from a 20k/10k divider (midpoint on GPIO35).
 
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -19,6 +18,14 @@ static const size_t MESSAGE_LENGTH = 11;
 static const uint16_t MIN_INTERVAL_MS = 100;
 static const uint16_t MAX_INTERVAL_MS = 5000;
 
+// Hardware
+static const int CURRENT_PIN = 34;            // ACS711 OUT
+static const int VOLTAGE_PIN = 35;            // divider midpoint
+static const float ZERO_CURRENT_MV = 1650.0f; // ACS711 output at 0 A (VCC / 2 at 3.3 V)
+static const float SENSITIVITY_MV_PER_A = 110.0f;  // ±12.5 A version; use 55 for ±25 A
+static const float DIVIDER_RATIO = 3.0f;      // (20k + 10k) / 10k
+static const int SAMPLES = 16;                // averaged per reading to smooth ADC noise
+
 BLECharacteristic* telemetryChar = nullptr;
 // Written from the Bluetooth task, read in loop(), so volatile.
 volatile bool clientConnected = false;
@@ -26,7 +33,13 @@ volatile uint16_t intervalMs = 1000;  // default from docs/protocol.md
 
 uint16_t sequence = 0;  // wraps from 65535 to 0 on its own
 uint32_t lastSendMs = 0;
-float fakeMillivolts = 4200.0f;
+
+// Average several calibrated ADC readings, in millivolts at the pin.
+float readPinMillivolts(int pin) {
+  uint32_t total = 0;
+  for (int i = 0; i < SAMPLES; i++) total += analogReadMilliVolts(pin);
+  return (float)total / SAMPLES;
+}
 
 // version(1) seq(2) time(4) mV(2) mA(2), little-endian. The ESP32 is little-endian,
 // so copying each value's bytes gives the right order.
@@ -70,6 +83,8 @@ class ConfigCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
+  analogSetPinAttenuation(CURRENT_PIN, ADC_11db);  // full 0-3.1 V range
+  analogSetPinAttenuation(VOLTAGE_PIN, ADC_11db);
 
   BLEDevice::init(DEVICE_NAME);
   BLEServer* server = BLEDevice::createServer();
@@ -103,13 +118,13 @@ void loop() {
   if (now - lastSendMs < intervalMs) return;
   lastSendMs = now;
 
-  // Stage 1: fake readings, like fake_board.py. Stage 2 reads the ACS711 and the divider here.
-  uint16_t mV = (uint16_t)fakeMillivolts;
-  int16_t mA = 300 + random(-20, 21);
-  fakeMillivolts -= 5;
-  if (fakeMillivolts < 3000) fakeMillivolts = 4200;
+  uint16_t mV = (uint16_t)(readPinMillivolts(VOLTAGE_PIN) * DIVIDER_RATIO);
+  int16_t mA = (int16_t)((readPinMillivolts(CURRENT_PIN) - ZERO_CURRENT_MV) * 1000.0f / SENSITIVITY_MV_PER_A);
 
-  if (!clientConnected) return;  // count only messages actually sent, so gaps mean real losses
+  if (!clientConnected) {
+    Serial.printf("no client: %u mV, %d mA\n", mV, mA);
+    return;  // count only messages actually sent, so gaps mean real losses
+  }
 
   uint8_t message[MESSAGE_LENGTH];
   packReading(message, sequence, now, mV, mA);
