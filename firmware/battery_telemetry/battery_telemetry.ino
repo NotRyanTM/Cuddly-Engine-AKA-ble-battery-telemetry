@@ -36,6 +36,9 @@ uint32_t lastSendMs = 0;
 
 // Average several calibrated ADC readings, in millivolts at the pin.
 float readPinMillivolts(int pin) {
+  // The ADC's sampling capacitor still holds the last pin's voltage, and the
+  // divider is too high-impedance to recharge it in one sample, so discard a few.
+  for (int i = 0; i < 4; i++) analogReadMilliVolts(pin);
   uint32_t total = 0;
   for (int i = 0; i < SAMPLES; i++) total += analogReadMilliVolts(pin);
   return (float)total / SAMPLES;
@@ -83,8 +86,7 @@ class ConfigCallbacks : public BLECharacteristicCallbacks {
 
 void setup() {
   Serial.begin(115200);
-  analogSetPinAttenuation(CURRENT_PIN, ADC_11db);  // full 0-3.1 V range
-  analogSetPinAttenuation(VOLTAGE_PIN, ADC_11db);
+  analogSetAttenuation(ADC_11db);  // full 0-3.1 V range on every ADC pin
 
   BLEDevice::init(DEVICE_NAME);
   BLEServer* server = BLEDevice::createServer();
