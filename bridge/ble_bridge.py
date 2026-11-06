@@ -53,7 +53,8 @@ async def handle_app(reader, writer):
     except (asyncio.IncompleteReadError, ConnectionError):
         print("app disconnected")
     finally:
-        state["app"] = None
+        if state["app"] is writer:  # a newer app connection may have replaced this one
+            state["app"] = None
         writer.close()
 
 
