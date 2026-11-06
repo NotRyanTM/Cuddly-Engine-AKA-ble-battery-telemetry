@@ -43,9 +43,13 @@ class TelemetryViewModel(
     }
 
     private fun addReading(state: UiState, reading: Reading): UiState {
-        val lost = state.latest?.let { lostBetween(it.sequence, reading.sequence) } ?: 0
+        // The board's clock only runs backward if it restarted. Its sequence number started
+        // over too, so that jump isn't lost messages, and old readings don't fit the new clock.
+        val restarted = state.latest?.let { reading.timeMs < it.timeMs } ?: false
+        val lost = if (restarted) 0 else state.latest?.let { lostBetween(it.sequence, reading.sequence) } ?: 0
+        val previous = if (restarted) emptyList() else state.recent
         // Keep only readings within the window, measured back from the newest one.
-        val recent = (state.recent + reading).filter { reading.timeMs - it.timeMs <= windowMs }
+        val recent = (previous + reading).filter { reading.timeMs - it.timeMs <= windowMs }
         return state.copy(
             latest = reading,
             recent = recent,

@@ -95,6 +95,28 @@ class TelemetryViewModelTest {
     }
 
     @Test
+    fun boardRestartIsNotALossAndClearsTheChart() = runTest(dispatcher) {
+        val source = TestTelemetrySource()
+        val viewModel = startViewModel(source)
+
+        // The board's sequence and clock both start over.
+        send(source, reading(500, timeMs = 100_000), reading(501, timeMs = 100_200), reading(0, timeMs = 50))
+
+        assertEquals(0, viewModel.state.value.lostMessages)
+        assertEquals(listOf(0), viewModel.state.value.recent.map { it.sequence })
+    }
+
+    @Test
+    fun realGapAfterARestartStillCounts() = runTest(dispatcher) {
+        val source = TestTelemetrySource()
+        val viewModel = startViewModel(source)
+
+        send(source, reading(500, timeMs = 100_000), reading(0, timeMs = 50), reading(2, timeMs = 450))
+
+        assertEquals(1, viewModel.state.value.lostMessages)
+    }
+
+    @Test
     fun readingsOlderThanWindowDropOut() = runTest(dispatcher) {
         val source = TestTelemetrySource()
         val viewModel = startViewModel(source, windowMs = 1000)
