@@ -20,7 +20,7 @@ The board, the bridge and the app all speak one 11-byte message format, defined 
 | Android app: decoder, fake and network data sources, ViewModel, screen with live power chart | Done |
 | Two-way control: Fast / Normal / Slow buttons set the board's sample interval | Done (app and fake board) |
 | Automated tests on every push (GitHub Actions) | Done |
-| Sensor board hardware (ESP32 + ACS711 + voltage divider) | Built and powered from a bench supply |
+| Sensor board hardware (ESP32 + ACS711 + voltage divider, [docs/hardware.md](docs/hardware.md)) | Built and powered from a bench supply |
 | ESP32 firmware | Reads the ACS711 (GPIO34) and divider (GPIO35), sends readings over BLE, accepts the config message |
 | Python BLE bridge | Connects to the board and forwards readings over TCP to the app |
 | Android BLE data source | Not planned; the app reaches the board through the bridge |
@@ -61,7 +61,7 @@ The full specification, including the BLE UUIDs, is in [docs/protocol.md](docs/p
 app/       Android app (Kotlin, Jetpack Compose)
 bridge/    Python decoder, fake board and BLE bridge
 firmware/  ESP32 firmware (Arduino C++)
-docs/      Message format specification
+docs/      Message format specification, hardware write-up and photos
 .github/   GitHub Actions workflow that runs both test suites
 ```
 
@@ -111,9 +111,13 @@ GitHub Actions runs both on every push. The UI tests need an emulator and run fr
 
 ## Hardware
 
+The full hardware write-up, with photos, a schematic, design numbers, a bring-up checklist and troubleshooting, is in [docs/hardware.md](docs/hardware.md).
+
+<img src="docs/images/breadboard.jpg" alt="ESP32 dev board, ACS711 current sensor and divider resistors on a breadboard" width="300">
+
 - ESP32 development board
-- Pololu ACS711 Hall-effect current sensor carrier, with its analog output on an ESP32 ADC pin
-- Resistor voltage divider that scales the battery voltage into the ESP32's ADC range
+- Pololu ACS711 Hall-effect current sensor carrier (±12.5 A, 110 mV/A)
+- 20 kΩ / 10 kΩ voltage divider that scales the battery voltage into the ESP32's ADC range
 - Bench supply at 6.0 V (Keysight U8031A) standing in for the battery, driving a 47 Ω, 5 W resistor load through the ACS711's IP+ and IP− terminals
 
 | Signal | Connection | Firmware conversion |
@@ -121,13 +125,10 @@ GitHub Actions runs both on every push. The UI tests need an emulator and run fr
 | Current | ACS711 OUT → GPIO34 (D34) | (pin mV − 1650) / 110 mV per A |
 | Voltage | 20 kΩ / 10 kΩ divider midpoint → GPIO35 (D35) | pin mV × 3 |
 
-Each reading averages 16 ADC samples. The ESP32 is powered from the laptop over USB, the ACS711 runs from the ESP32's 3.3 V supply, and the supply's negative terminal shares a ground with the ACS711, the divider and the ESP32.
-
 First check against the bench supply (6.0 V, 0.13 A): the best run showed about 5.94 V and 120–140 mA in the app, with readings coming through the bridge with no sequence gaps. A full accuracy check hasn't been done yet.
-
-A loose breadboard connection on GPIO34 caused the worst early readings (down to about −13,700 mA, which is what a 0 V input converts to).
 
 ## Next steps
 
-1. Measure accuracy at several voltages, lost messages at different distances and reconnect time, and add the results here.
-2. Add link-health detection, so the app can tell a rejected message or stale data from a real disconnect.
+1. Measure the current sensor's zero point at startup instead of assuming 1650 mV (see [docs/hardware.md](docs/hardware.md#design-numbers)).
+2. Measure accuracy at several voltages, lost messages at different distances and reconnect time, and add the results here.
+3. Add link-health detection, so the app can tell a rejected message or stale data from a real disconnect.
